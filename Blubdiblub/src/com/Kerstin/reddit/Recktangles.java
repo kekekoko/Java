@@ -3,6 +3,7 @@ package com.Kerstin.reddit;
 import java.io.Console;
 
 public class Recktangles{
+	//#276 [Easy] Recktangles
 	public static void main (String[] args){
 		//System.out.println("Enter word, width and height");
 		try{
