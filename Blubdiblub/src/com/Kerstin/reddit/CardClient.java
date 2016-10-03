@@ -10,7 +10,7 @@ public class CardClient{
 	//#268 Network and Cards
 	private final String hostName;
 	private final int port;
-	
+	//prototype not working
 	public static void main(String[] args){
 		new CardClient("192.168.0.11", 4444);
 	}
