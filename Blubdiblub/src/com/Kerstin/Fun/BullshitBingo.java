@@ -1,61 +1,142 @@
 package com.Kerstin.Fun;
 
+import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
-import java.awt.TrayIcon.MessageType;
 import java.awt.event.*;
-import java.awt.font.TextAttribute;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 
 import javax.swing.*;
-import javax.swing.border.Border;
-import javax.swing.table.AbstractTableModel;
 
 public class BullshitBingo implements ActionListener, MouseListener{
 	
-	private JFrame mainWindow;
+	private JFrame frame;
 	private JPanel table;
 	private boolean cellsEditable = false;
+	private String saveFilePath;
 	
 	private BullshitBingo(){
-		mainWindow = new JFrame("Bullshit Bingo");
-		this.initialize(mainWindow);
+		setFilePath();
+		frame = new JFrame("Bullshit Bingo");
+		this.initialize();
 	}
 	
-	private void initialize(JFrame frame){
+	private void saveTable(){
+		try{
+			PrintWriter writer = new PrintWriter(saveFilePath, "UTF-8");
+			int noOfCells = table.getComponentCount();
+			for (int i = 0; i < noOfCells; i++){
+				TableCell currentCell = (TableCell) table.getComponent(i);
+				writer.println(currentCell.getText());
+			}
+			writer.close();
+		} catch (Exception e){
+			e.printStackTrace();
+		}
+	}
+	
+	private void setFilePath(){
+		Path path = Paths.get(System.getProperty("user.home"), "BullshitBingo");
+		//create BullshitBingo folder is it doesn't exist
+			try {
+				Files.createDirectories(path);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		path = Paths.get(path.toString(), "savedTable.txt");
+		this.saveFilePath = path.toString();
+	}
+	
+	private void initialize(){
 		//initialize frame
 		frame.setLayout(new FlowLayout());
 		frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 		frame.setVisible(true);
-		//initialize buttons
+		//first screen
+		JPanel masterPanel = new JPanel();
+		masterPanel.setLayout(new BoxLayout(masterPanel, BoxLayout.PAGE_AXIS));
+		JPanel p1 = new JPanel();
+		JPanel p2 = new JPanel();
+		JLabel initialText = new JLabel("Do you want to load your saved table?");
+		p1.add(initialText);
+		JButton yes = new JButton("Yes");
+		JButton no = new JButton("No");
+		yes.addActionListener(this);
+		yes.setActionCommand("yesloadsaved");
+		no.addActionListener(this);
+		no.setActionCommand("nodontload");
+		p2.add(yes);
+		p2.add(no);
+		masterPanel.add(p1);
+		masterPanel.add(p2);
+		frame.add(masterPanel);
+		frame.pack();
+	}
+	
+	private void initializeMainComponents(boolean loadSaved){
+		//initialize buttons in JPanel
+		JPanel editButtons = new JPanel();
+		editButtons.setLayout(new BorderLayout());
 		JButton phraseAdder = new JButton("Add phrase");
-		frame.add(phraseAdder);
+		editButtons.add(phraseAdder, BorderLayout.PAGE_START);
 		phraseAdder.addActionListener(this);
 		phraseAdder.setActionCommand("addphrase");
 		JButton cellAdder = new JButton("AddCell");
-		frame.add(cellAdder);
+		editButtons.add(cellAdder, BorderLayout.CENTER);
 		cellAdder.addActionListener(this);
 		cellAdder.setActionCommand("addcell");
+		JButton saver = new JButton("Save");
+		editButtons.add(saver, BorderLayout.PAGE_END);
+		saver.addActionListener(this);
+		saver.setActionCommand("save");
+		frame.add(editButtons);
 		//initialize table
 		 table = new JPanel();
 		GridLayout tableLayout = new GridLayout(0,4);
 		table.setLayout(tableLayout);
-		JPanel[] tableContent = this.initializeTableContent();
+		ArrayList<JPanel> tableContent = this.initializeTableContent(loadSaved);
 		for (JPanel p : tableContent){
 			p.addMouseListener(this);
 			table.add(p);
 		}
 		frame.add(table);
+		frame.setVisible(true);
 		frame.pack();
 	}
 	
-	private JPanel[] initializeTableContent(){
-		int initialSize = 8;
-		JPanel[] tableContent = new JPanel[initialSize];
-		String[] cellText = {"u der", "pls",  "ASAP", "???", "do the needful", "man", "there", "tight deadline"};
-		for (int i = 0; i < initialSize; i++){
-			tableContent[i] = new TableCell(cellText[i]);
+	private ArrayList<JPanel> initializeTableContent(boolean loadSaved){
+		ArrayList<JPanel> tableContent = new ArrayList<JPanel>();
+		if (!loadSaved){
+			int initialSize = 8;
+			String[] cellText = {"u der", "pls",  "ASAP", "???", "do the needful", "man", "there", "tight deadline"};
+			for (int i = 0; i < initialSize; i++){
+				tableContent.add(new TableCell(cellText[i]));
+			}
+		} else{
+			try{
+				BufferedReader in = null;
+				in = new BufferedReader(new FileReader(this.saveFilePath));
+				String line;
+				while ((line = in.readLine())!= null){
+					tableContent.add(new TableCell(line));
+				}
+				in.close();
+			} catch (IOException e){
+				if (e instanceof FileNotFoundException){
+					JOptionPane.showMessageDialog(this.frame, "No table saved, adding empty table!");
+				} else{
+					e.printStackTrace();
+				}
+			} 
 		}
 		return tableContent;
 	}
@@ -72,7 +153,6 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	}
 	
 	public void actionPerformed(ActionEvent e) {
-		Object target = e.getSource();
 		String actionCommand = e.getActionCommand();
 		if (actionCommand == "addphrase"){
 			this.cellsEditable = true;
@@ -81,7 +161,18 @@ public class BullshitBingo implements ActionListener, MouseListener{
 			JPanel newCell = new TableCell("my new cell");
 			newCell.addMouseListener(this);
 			this.table.add(newCell);
-			this.mainWindow.pack();
+			this.frame.pack();
+		}
+		if (actionCommand == "save"){
+			this.saveTable();
+		}
+		if (actionCommand == "yesloadsaved"){
+			this.frame.getContentPane().removeAll();
+			this.initializeMainComponents(true);
+		}
+		if (actionCommand == "nodontload"){
+			this.frame.getContentPane().removeAll();
+			this.initializeMainComponents(false);
 		}
 	}
 
@@ -100,22 +191,27 @@ public class BullshitBingo implements ActionListener, MouseListener{
 			if (!cellsEditable){
 				target.changeStatus();
 			} else{
-				String newPhrase = JOptionPane.showInputDialog(this.mainWindow, "Enter new phrase:", "Pls do the needful", 1);
+				String newPhrase = JOptionPane.showInputDialog(this.frame, "Enter new phrase:", "Pls do the needful", 1);
 				target.setText(newPhrase);
 				this.cellsEditable = false;
 			}
 		}
 	    if (this.checkIfDone()){
-	    	JOptionPane.showMessageDialog(this.mainWindow, "Yay, you won! Greetings to Rohit!");
+	    	JOptionPane.showMessageDialog(this.frame, "Yay, you won! Greetings to Rohit!");
 	    } 
 	}
 
 	public void mouseReleased(MouseEvent arg0) {	
 	}
 	
+	@SuppressWarnings("serial")
 	private class TableCell extends JPanel{
 		private JLabel text;
 		boolean checked;
+		
+		public String getText(){
+			return this.text.getText();
+		}
 		
 		protected void setText(String newText){
 			this.text.setText(newText);
