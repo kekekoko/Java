@@ -2,6 +2,8 @@ package com.Kerstin.Fun;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.event.*;
@@ -14,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 
 import javax.swing.*;
 
@@ -23,6 +26,7 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	private JPanel table;
 	private boolean cellsEditable = false;
 	private String saveFilePath;
+	private GridLayout tableLayout;
 	
 	private BullshitBingo(){
 		setFilePath();
@@ -85,24 +89,26 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	private void initializeMainComponents(boolean loadSaved){
 		//initialize buttons in JPanel
 		JPanel editButtons = new JPanel();
-		editButtons.setLayout(new BorderLayout());
-		JButton phraseAdder = new JButton("Add phrase");
-		editButtons.add(phraseAdder, BorderLayout.PAGE_START);
-		phraseAdder.addActionListener(this);
-		phraseAdder.setActionCommand("addphrase");
-		JButton cellAdder = new JButton("AddCell");
-		editButtons.add(cellAdder, BorderLayout.CENTER);
+		editButtons.setLayout(new GridLayout(0,1));
+		JButton randomizer = new JButton("Randomize");
+		editButtons.add(randomizer);
+		randomizer.addActionListener(this);
+		randomizer.setActionCommand("randomize");
+		JButton cellAdder = new JButton("Add Cells");
+		editButtons.add(cellAdder);
 		cellAdder.addActionListener(this);
-		cellAdder.setActionCommand("addcell");
+		cellAdder.setActionCommand("addcells");
+		JButton cellClearer = new JButton("Clear Selections");
+		editButtons.add(cellClearer);
+		cellClearer.addActionListener(this);
+		cellClearer.setActionCommand("clear");
 		JButton saver = new JButton("Save");
-		editButtons.add(saver, BorderLayout.PAGE_END);
+		editButtons.add(saver);
 		saver.addActionListener(this);
 		saver.setActionCommand("save");
 		frame.add(editButtons);
 		//initialize table
 		 table = new JPanel();
-		GridLayout tableLayout = new GridLayout(0,4);
-		table.setLayout(tableLayout);
 		ArrayList<JPanel> tableContent = this.initializeTableContent(loadSaved);
 		for (JPanel p : tableContent){
 			p.addMouseListener(this);
@@ -115,11 +121,12 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	
 	private ArrayList<JPanel> initializeTableContent(boolean loadSaved){
 		ArrayList<JPanel> tableContent = new ArrayList<JPanel>();
+		double tableSize = 0;
 		if (!loadSaved){
-			int initialSize = 8;
-			String[] cellText = {"u der", "pls",  "ASAP", "???", "do the needful", "man", "there", "tight deadline"};
-			for (int i = 0; i < initialSize; i++){
-				tableContent.add(new TableCell(cellText[i]));
+			tableSize = 2;
+			String[] cellText = {"u der", "pls",  "ASAP", "???"};
+			for (String s: cellText){
+				tableContent.add(new TableCell(s));
 			}
 		} else{
 			try{
@@ -130,37 +137,161 @@ public class BullshitBingo implements ActionListener, MouseListener{
 					tableContent.add(new TableCell(line));
 				}
 				in.close();
+				//verify table is square
+				tableSize = Math.pow(tableContent.size(), 0.5);
+				if (tableSize != (int) tableSize){
+					tableContent.clear();
+					this.initializeTableContent(false);
+				}
 			} catch (IOException e){
 				if (e instanceof FileNotFoundException){
 					JOptionPane.showMessageDialog(this.frame, "No table saved, adding empty table!");
+					this.initializeTableContent(false);
 				} else{
 					e.printStackTrace();
 				}
 			} 
 		}
+		tableLayout = new GridLayout(0,(int) tableSize);
+		table.setLayout(tableLayout);
 		return tableContent;
 	}
 	
-	private boolean checkIfDone(){
+	private void addTableCells(){
+		int oldTableSize = this.tableLayout.getColumns() ;
+		int oldCellNumber = oldTableSize * oldTableSize;
+		int newCellNumber = (oldTableSize + 1) * (oldTableSize + 1);
+		for(int i = oldCellNumber; i < newCellNumber ; i++){
+			TableCell newCell = new TableCell();
+			newCell.addMouseListener(this);
+			this.table.add(newCell);
+			newCell.edit();
+		}
+		this.tableLayout.setColumns(oldTableSize + 1);
+		this.frame.pack();
+	}
+	
+	private void randomize(){
+		ArrayList<TableCell> tempList = new ArrayList<TableCell>();
 		int noOfCells = table.getComponentCount();
 		for (int i = 0; i < noOfCells; i++){
-			TableCell currentCell = (TableCell) table.getComponent(i);
-			if (!currentCell.checked){
-				return false;
+			tempList.add((TableCell) table.getComponent(i));
+		}
+		Collections.shuffle(tempList);
+		this.table.removeAll();
+		for (TableCell c : tempList){
+			this.table.add(c);
+		}
+		this.frame.pack();
+	}
+	
+	private boolean checkIfDone(){
+		boolean done = true;
+		int tableSize = tableLayout.getColumns();
+//		TableCell currentCell;
+//		boolean firstD = true, secondD = true, rows = true, cols = true;
+//		
+//		for (int i = 0; i < tableSize; i++){
+//			//check 1st diagonal
+//			if (firstD){
+//				currentCell = (TableCell) table.getComponent(i + (tableSize*i));
+//				firstD = currentCell.checked;
+//			}
+//			//check 2nd diagonal
+//			if (secondD){
+//				currentCell = (TableCell) table.getComponent(tableSize*(i+1) - (i + 1));
+//				secondD = currentCell.checked;
+//			}
+//			//check rows
+//			if (!rows){
+//				rows = true;
+//			}
+//				for (int j = 0; j < tableSize; j++){
+//					if (rows){
+//						currentCell = (TableCell) table.getComponent(i * tableSize + j);
+//						rows = currentCell.checked;
+//					}
+//				}
+//			
+//			//check columns
+////			for (int j = 0; j < tableSize; j++){
+////				cols = true;
+////				if (cols){
+////					currentCell = (TableCell) table.getComponent(i + j * tableSize);
+////					cols = currentCell.checked;
+////				}
+////			}
+//		}
+//		if (firstD | secondD | rows){
+//			return true;
+//		} else return false;
+		
+		//check 1st diagonal
+		for (int i = 0; i < tableSize; i++){
+			TableCell currentCell = (TableCell) table.getComponent(i + (tableSize*i));
+			if (done){
+				done = currentCell.checked;
 			}
 		}
-		return true;
+		if (done){
+			return done;
+		}
+		//check 2nd diagonal
+		done = true;
+		for (int i = 0; i < tableSize; i++){
+			TableCell currentCell = (TableCell) table.getComponent(tableSize*(i+1) - (i + 1));
+			if (done){
+				done = currentCell.checked;
+			}
+		}
+		if (done){
+			return done;
+		}
+		//check rows
+		for (int i = 0; i < tableSize; i++){
+			done = true;
+			for (int j = 0; j < tableSize; j++){
+				TableCell currentCell = (TableCell) table.getComponent(i * tableSize + j);
+				if (done){
+					done = currentCell.checked;
+				}
+			}
+			if (done){
+				return done;
+			}
+		}
+		//check columns
+		for (int i = 0; i < tableSize; i++){
+			done = true;
+			for (int j = 0; j < tableSize; j++){
+				TableCell currentCell = (TableCell) table.getComponent(i + j * tableSize);
+				if (done){
+					done = currentCell.checked;
+				}
+			}
+			if (done){
+				return done;
+			}
+		}
+		return done;
 	}
 	
 	public void actionPerformed(ActionEvent e) {
 		String actionCommand = e.getActionCommand();
-		if (actionCommand == "addphrase"){
-			this.cellsEditable = true;
+		if (actionCommand == "randomize"){
+			this.randomize();
 		}
-		if (actionCommand == "addcell"){
-			JPanel newCell = new TableCell("my new cell");
-			newCell.addMouseListener(this);
-			this.table.add(newCell);
+		if (actionCommand == "addcells"){
+			this.addTableCells();
+		}
+		if (actionCommand == "clear"){
+			int noOfCells = table.getComponentCount();
+			for (int i = 0; i < noOfCells; i++){
+				TableCell currentCell = (TableCell) table.getComponent(i);
+				if (currentCell.checked){
+					currentCell.changeStatus();
+				}
+			}
 			this.frame.pack();
 		}
 		if (actionCommand == "save"){
@@ -176,18 +307,11 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		}
 	}
 
-	public void mouseClicked(MouseEvent arg0) {
-	}
-
-	public void mouseEntered(MouseEvent arg0) {
-	}
-
-	public void mouseExited(MouseEvent arg0) {
-	}
-
-	public void mousePressed(MouseEvent e) {
+	public void mouseClicked(MouseEvent e) {
 		TableCell target = (TableCell)e.getSource();
-		if (e.getClickCount() == 1) {
+		if (e.getClickCount() == 2){
+			target.edit();
+		} else if (e.getClickCount() == 1) {
 			if (!cellsEditable){
 				target.changeStatus();
 			} else{
@@ -201,13 +325,41 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	    } 
 	}
 
+	public void mouseEntered(MouseEvent arg0) {
+	}
+
+	public void mouseExited(MouseEvent arg0) {
+	}
+
+	public void mousePressed(MouseEvent e) {
+
+	}
+
 	public void mouseReleased(MouseEvent arg0) {	
 	}
 	
 	@SuppressWarnings("serial")
-	private class TableCell extends JPanel{
+	private class TableCell extends JPanel implements KeyListener{
 		private JLabel text;
-		boolean checked;
+		private JTextField editField;
+		private boolean checked;
+		private boolean isEditable;
+		
+		TableCell(String newText){
+			checked = false;
+			text = new JLabel(newText);
+			this.add(text);
+			this.editField = new JTextField();
+			this.editField.addKeyListener(this);
+		}
+		
+		TableCell(){
+			checked = false;
+			text = new JLabel();
+			this.add(text);
+			this.editField = new JTextField();
+			this.editField.addKeyListener(this);
+		}
 		
 		public String getText(){
 			return this.text.getText();
@@ -226,14 +378,37 @@ public class BullshitBingo implements ActionListener, MouseListener{
 			} else this.setBackground(null);
 		}
 		
-		TableCell(String newText){
-			checked = false;
-			text = new JLabel(newText);
-			this.add(text);
+		private void edit(){
+			this.text.setVisible(false);
+			this.editField.setSize(this.getSize());
+			this.add(this.editField);
+		}
+
+		@Override
+		public void keyPressed(KeyEvent e) {
+			// TODO Auto-generated method stub
+			if (e.getSource()  instanceof  JTextField && e.getKeyCode() == KeyEvent.VK_ENTER){
+				String newText = this.editField.getText();
+				if (newText != ""){
+					this.setText(newText);
+				}
+				this.remove(this.editField);
+				this.text.setVisible(true);
+				BullshitBingo.this.frame.pack();
+			}
+		}
+
+		@Override
+		public void keyReleased(KeyEvent e) {
+		}
+
+		@Override
+		public void keyTyped(KeyEvent e) {
 		}
 	}
-	
+
 	public static void main(String[] args){
 		new BullshitBingo();
 	}
+
 }
