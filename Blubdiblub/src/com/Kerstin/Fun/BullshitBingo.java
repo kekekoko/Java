@@ -1,63 +1,98 @@
 package com.Kerstin.Fun;
 
-import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.event.*;
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Set;
 
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.DataLine;
 import javax.swing.*;
 
 public class BullshitBingo implements ActionListener, MouseListener{
 	
 	private JFrame frame;
 	private JPanel table;
-	private boolean cellsEditable = false;
-	private String saveFilePath;
 	private GridLayout tableLayout;
+	private String databasePath;
+	private ArrayList<String> defaultValues = new ArrayList<String>(Arrays.asList("u der", "pls", "ASAP", "???", "do the needful", "there?", "wrong answer from 2nd", "no contribution from 2nd", "tight deadline", "critical issue", "trail version", "XBox", "Tosco", "any update", "yes to polar question", "ridiculous abbreviation", "please check", "ther", "man", ":)"));
+	private boolean isMuted = false;
 	
 	private BullshitBingo(){
-		setFilePath();
+		createDatabase();
 		frame = new JFrame("Bullshit Bingo");
 		this.initialize();
 	}
-	
-	private void saveTable(){
-		try{
-			PrintWriter writer = new PrintWriter(saveFilePath, "UTF-8");
-			int noOfCells = table.getComponentCount();
-			for (int i = 0; i < noOfCells; i++){
-				TableCell currentCell = (TableCell) table.getComponent(i);
-				writer.println(currentCell.getText());
-			}
-			writer.close();
-		} catch (Exception e){
-			e.printStackTrace();
+		
+	private void playAudio(boolean won){
+		if (!this.isMuted){
+			 try {          
+		    	  URL url = BullshitBingo.class.getResource("/nobingo.wav");
+		    	  AudioInputStream inputStream = AudioSystem.getAudioInputStream(url);
+		          AudioFormat format = inputStream.getFormat();
+		          DataLine.Info info = new DataLine.Info(Clip.class, format);
+		          Clip clip = (Clip)AudioSystem.getLine(info);
+		          clip.open(inputStream);
+		          clip.start(); 	          
+		      } catch (Exception e){
+		    	  e.printStackTrace();
+		      }
 		}
 	}
 	
-	private void setFilePath(){
+	private void saveTable(){
+		int noOfCells = table.getComponentCount();
+		try (Connection conn = DriverManager.getConnection(this.databasePath)) { 
+			Statement stmt = conn.createStatement();
+			stmt.executeUpdate( "CREATE TABLE IF NOT EXISTS savedValues (Name VARCHAR UNIQUE, IsSelected INTEGER);");
+			stmt.executeUpdate("DELETE FROM savedValues");
+			for (int i = 0; i < noOfCells; i++){
+				TableCell currentCell = (TableCell) table.getComponent(i);
+				int currentDbBool = currentCell.checked ? 1 : 0;
+				stmt.executeUpdate("INSERT OR IGNORE INTO savedValues (Name, IsSelected) VALUES (\"" + currentCell.getText() + "\", " + currentDbBool + ");");
+			}
+        } catch (SQLException e) {
+        	System.out.println("something went completely wrong, looks like you broke the db. wtf did you do?");
+            System.out.println(e.getMessage());
+        }
+	}
+		
+	private void createDatabase() {
 		Path path = Paths.get(System.getProperty("user.home"), "BullshitBingo");
 		//create BullshitBingo folder is it doesn't exist
-			try {
-				Files.createDirectories(path);
-			} catch (IOException e) {
-				e.printStackTrace();
+		try {
+			Files.createDirectories(path);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		//dtabase stuff
+		path = Paths.get(path.toString(), "BullshitDB.db");
+		this.databasePath = "jdbc:sqlite:" + path.toString();
+		try (Connection conn = DriverManager.getConnection(this.databasePath)) { 
+			Statement stmt = conn.createStatement();
+			stmt.executeUpdate( "CREATE TABLE IF NOT EXISTS defaultValues (Name VARCHAR UNIQUE);");
+			for (String newValue : this.defaultValues){
+				stmt.executeUpdate("INSERT OR IGNORE INTO defaultValues (Name) VALUES (\"" + newValue + "\");");
 			}
-		path = Paths.get(path.toString(), "savedTable.txt");
-		this.saveFilePath = path.toString();
+        } catch (SQLException e) {
+        	System.out.println("something went completely wrong, looks like you broke the db. wtf did you do?");
+            System.out.println(e.getMessage());
+        }
 	}
 	
 	private void initialize(){
@@ -87,7 +122,7 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	}
 	
 	private void initializeMainComponents(boolean loadSaved){
-		//initialize buttons in JPanel
+		//initialize buttons and stuff in JPanel
 		JPanel editButtons = new JPanel();
 		editButtons.setLayout(new GridLayout(0,1));
 		JButton randomizer = new JButton("Randomize");
@@ -106,6 +141,10 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		editButtons.add(saver);
 		saver.addActionListener(this);
 		saver.setActionCommand("save");
+		JCheckBox mute = new JCheckBox("Stop this sound!!!!!!");
+		editButtons.add(mute);
+		mute.setFocusPainted(false);
+		mute.addMouseListener(this);
 		frame.add(editButtons);
 		//initialize table
 		 table = new JPanel();
@@ -118,39 +157,46 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		frame.setVisible(true);
 		frame.pack();
 	}
-	
+		
 	private ArrayList<JPanel> initializeTableContent(boolean loadSaved){
 		ArrayList<JPanel> tableContent = new ArrayList<JPanel>();
 		double tableSize = 0;
-		if (!loadSaved){
-			tableSize = 2;
-			String[] cellText = {"u der", "pls",  "ASAP", "???"};
-			for (String s: cellText){
-				tableContent.add(new TableCell(s));
+		//new sqlite part
+		try (Connection newConnection = DriverManager.getConnection(this.databasePath)) { 
+			Statement newStatement = newConnection.createStatement();
+			if (!loadSaved){
+				ResultSet defaultValues = newStatement.executeQuery("SELECT * FROM defaultValues");
+				ArrayList<String> allValues = new ArrayList<String>();
+				while (defaultValues.next()){
+					String newValue = defaultValues.getString("Name");
+					allValues.add(newValue);
+				}
+				tableSize = 3;
+				Collections.shuffle(allValues);
+				for (int i = 0; i < tableSize * tableSize; i++){
+					tableContent.add(new TableCell(allValues.get(i)));
+				}
+			} else {
+				ResultSet savedValues = newStatement.executeQuery("SELECT * FROM savedValues");
+				LinkedHashMap<String, Integer> savedTable = new LinkedHashMap<String, Integer>();
+				while (savedValues.next()){
+					String newValue = savedValues.getString("Name");
+					Integer newState  = savedValues.getInt("IsSelected");
+					savedTable.put(newValue, newState);
+				}
+				//maybe add some logic to make sure table is square
+				Set<String> savedStrings = savedTable.keySet();
+				for (String s : savedStrings){
+					TableCell newCell = new TableCell(s);
+					if (savedTable.get(s) != 0){
+						newCell.changeStatus();
+					}
+					tableContent.add(newCell);
+				}
+				tableSize = Math.pow(savedTable.size(), 0.5);
 			}
-		} else{
-			try{
-				BufferedReader in = null;
-				in = new BufferedReader(new FileReader(this.saveFilePath));
-				String line;
-				while ((line = in.readLine())!= null){
-					tableContent.add(new TableCell(line));
-				}
-				in.close();
-				//verify table is square
-				tableSize = Math.pow(tableContent.size(), 0.5);
-				if (tableSize != (int) tableSize){
-					tableContent.clear();
-					this.initializeTableContent(false);
-				}
-			} catch (IOException e){
-				if (e instanceof FileNotFoundException){
-					JOptionPane.showMessageDialog(this.frame, "No table saved, adding empty table!");
-					this.initializeTableContent(false);
-				} else{
-					e.printStackTrace();
-				}
-			} 
+		} catch (SQLException e1) {
+			System.out.println("something went completely wrong with the db, wtf did you do?");
 		}
 		tableLayout = new GridLayout(0,(int) tableSize);
 		table.setLayout(tableLayout);
@@ -161,13 +207,12 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		int oldTableSize = this.tableLayout.getColumns() ;
 		int oldCellNumber = oldTableSize * oldTableSize;
 		int newCellNumber = (oldTableSize + 1) * (oldTableSize + 1);
+		this.tableLayout.setColumns(oldTableSize + 1);
 		for(int i = oldCellNumber; i < newCellNumber ; i++){
 			TableCell newCell = new TableCell();
 			newCell.addMouseListener(this);
 			this.table.add(newCell);
-			newCell.edit();
 		}
-		this.tableLayout.setColumns(oldTableSize + 1);
 		this.frame.pack();
 	}
 	
@@ -187,45 +232,7 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	
 	private boolean checkIfDone(){
 		boolean done = true;
-		int tableSize = tableLayout.getColumns();
-//		TableCell currentCell;
-//		boolean firstD = true, secondD = true, rows = true, cols = true;
-//		
-//		for (int i = 0; i < tableSize; i++){
-//			//check 1st diagonal
-//			if (firstD){
-//				currentCell = (TableCell) table.getComponent(i + (tableSize*i));
-//				firstD = currentCell.checked;
-//			}
-//			//check 2nd diagonal
-//			if (secondD){
-//				currentCell = (TableCell) table.getComponent(tableSize*(i+1) - (i + 1));
-//				secondD = currentCell.checked;
-//			}
-//			//check rows
-//			if (!rows){
-//				rows = true;
-//			}
-//				for (int j = 0; j < tableSize; j++){
-//					if (rows){
-//						currentCell = (TableCell) table.getComponent(i * tableSize + j);
-//						rows = currentCell.checked;
-//					}
-//				}
-//			
-//			//check columns
-////			for (int j = 0; j < tableSize; j++){
-////				cols = true;
-////				if (cols){
-////					currentCell = (TableCell) table.getComponent(i + j * tableSize);
-////					cols = currentCell.checked;
-////				}
-////			}
-//		}
-//		if (firstD | secondD | rows){
-//			return true;
-//		} else return false;
-		
+		int tableSize = tableLayout.getColumns();		
 		//check 1st diagonal
 		for (int i = 0; i < tableSize; i++){
 			TableCell currentCell = (TableCell) table.getComponent(i + (tableSize*i));
@@ -273,9 +280,12 @@ public class BullshitBingo implements ActionListener, MouseListener{
 				return done;
 			}
 		}
+		if (!done){
+			this.playAudio(false);
+		}
 		return done;
 	}
-	
+		
 	public void actionPerformed(ActionEvent e) {
 		String actionCommand = e.getActionCommand();
 		if (actionCommand == "randomize"){
@@ -308,21 +318,20 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	}
 
 	public void mouseClicked(MouseEvent e) {
-		TableCell target = (TableCell)e.getSource();
-		if (e.getClickCount() == 2){
-			target.edit();
-		} else if (e.getClickCount() == 1) {
-			if (!cellsEditable){
-				target.changeStatus();
-			} else{
-				String newPhrase = JOptionPane.showInputDialog(this.frame, "Enter new phrase:", "Pls do the needful", 1);
-				target.setText(newPhrase);
-				this.cellsEditable = false;
+		if (e.getSource().getClass() == TableCell.class){
+			TableCell target = (TableCell)e.getSource();
+			if (e.getButton() == MouseEvent.BUTTON3){
+				target.edit();
+			} else if (e.getButton() == MouseEvent.BUTTON1 && target.getText() != "") {
+					target.changeStatus();
+					if (this.checkIfDone()){
+				    	JOptionPane.showMessageDialog(this.frame, "Yay, you won!");
+				    } 
 			}
+		} else if (e.getSource().getClass() == JCheckBox.class){
+			JCheckBox source = (JCheckBox) e.getSource();
+			this.isMuted = source.isSelected();
 		}
-	    if (this.checkIfDone()){
-	    	JOptionPane.showMessageDialog(this.frame, "Yay, you won! Greetings to Rohit!");
-	    } 
 	}
 
 	public void mouseEntered(MouseEvent arg0) {
@@ -346,6 +355,7 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		private boolean isEditable;
 		
 		TableCell(String newText){
+			this.setLayout(new GridBagLayout());
 			checked = false;
 			text = new JLabel(newText);
 			this.add(text);
@@ -354,6 +364,7 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		}
 		
 		TableCell(){
+			this.setLayout(new GridBagLayout());
 			checked = false;
 			text = new JLabel();
 			this.add(text);
@@ -379,22 +390,28 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		}
 		
 		private void edit(){
-			this.text.setVisible(false);
-			this.editField.setSize(this.getSize());
+			this.remove(this.text);
 			this.add(this.editField);
+			this.editField.setSize(this.getSize());
 		}
 
 		@Override
 		public void keyPressed(KeyEvent e) {
-			// TODO Auto-generated method stub
 			if (e.getSource()  instanceof  JTextField && e.getKeyCode() == KeyEvent.VK_ENTER){
 				String newText = this.editField.getText();
 				if (newText != ""){
 					this.setText(newText);
 				}
 				this.remove(this.editField);
-				this.text.setVisible(true);
-				BullshitBingo.this.frame.pack();
+				this.add(this.text);
+				BullshitBingo.this.frame.revalidate();
+				BullshitBingo.this.frame.repaint();
+			} 
+			else if (e.getSource()  instanceof  JTextField && e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+				this.remove(this.editField);
+				this.add(this.text);
+				BullshitBingo.this.frame.repaint();
+				BullshitBingo.this.frame.revalidate();
 			}
 		}
 
@@ -408,6 +425,12 @@ public class BullshitBingo implements ActionListener, MouseListener{
 	}
 
 	public static void main(String[] args){
+		try {
+			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e){
+        	System.out.println("What weird kind of system are you using? Get rid of it!");
+        	System.out.println(e.getStackTrace());
+        }
 		new BullshitBingo();
 	}
 

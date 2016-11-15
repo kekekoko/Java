@@ -14,4 +14,11 @@
 	<natures>
 		<nature>org.eclipse.jdt.core.javanature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>Files</name>
+			<type>2</type>
+			<location>/home/kerstin/Documents/JavaGitHub/trunk/Blubdiblub/src/Files</location>
+		</link>
+	</linkedResources>
 </projectDescription>
