@@ -23,15 +23,18 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.sound.sampled.DataLine;
 import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 
-public class BullshitBingo implements ActionListener, MouseListener{
+public class BullshitBingo implements ActionListener, MouseListener, ChangeListener{
 	
 	private JFrame frame;
 	private JPanel table;
 	private GridLayout tableLayout;
 	private String databasePath;
-	private ArrayList<String> defaultValues = new ArrayList<String>(Arrays.asList("u der", "pls", "ASAP", "???", "do the needful", "there?", "wrong answer from 2nd", "no contribution from 2nd", "tight deadline", "critical issue", "trail version", "XBox", "Tosco", "any update", "yes to polar question", "ridiculous abbreviation", "please check", "ther", "man", ":)"));
+	private ArrayList<String> defaultValues = new ArrayList<String>(Arrays.asList("doesn't understand docu", "'screenshot'", "ok after auto-message", "ETA", "ok but doesn't understand", "at the earliest", "misspelled name", "hi team", "the same", "not getting it", "step by step", "incidence", "not working", "open and close chat", "Document FR", "please help", "urgent", "user falls asleep", "hi", "funny bug", "u der", "pls", "ASAP", "???", "do the needful", "there?", "wrong answer from 2nd", "no contribution from 2nd", "tight deadline", "critical issue", "trail version", "XBox", "Tosco", "any update", "yes to polar question", "ridiculous abbreviation", "please check", "ther", "man", ":)"));
 	private boolean isMuted = false;
+	private int difficulty = 0;
 	
 	private BullshitBingo(){
 		createDatabase();
@@ -113,8 +116,16 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		yes.setActionCommand("yesloadsaved");
 		no.addActionListener(this);
 		no.setActionCommand("nodontload");
+		int maxDifficulty = 6;
+		Integer[] difficulties = new Integer[maxDifficulty - 1];
+		for (int i = 0; i < maxDifficulty - 1; i++){
+			difficulties[i] = i+2;
+		}
+		JSpinner difficulty = new JSpinner(new SpinnerListModel(difficulties));
+		difficulty.addChangeListener(this);
 		p2.add(yes);
 		p2.add(no);
+		p2.add(difficulty);
 		masterPanel.add(p1);
 		masterPanel.add(p2);
 		frame.add(masterPanel);
@@ -125,7 +136,7 @@ public class BullshitBingo implements ActionListener, MouseListener{
 		//initialize buttons and stuff in JPanel
 		JPanel editButtons = new JPanel();
 		editButtons.setLayout(new GridLayout(0,1));
-		JButton randomizer = new JButton("Randomize");
+		JButton randomizer = new JButton("Randomize Cells");
 		editButtons.add(randomizer);
 		randomizer.addActionListener(this);
 		randomizer.setActionCommand("randomize");
@@ -171,7 +182,7 @@ public class BullshitBingo implements ActionListener, MouseListener{
 					String newValue = defaultValues.getString("Name");
 					allValues.add(newValue);
 				}
-				tableSize = 3;
+				tableSize = this.difficulty;
 				Collections.shuffle(allValues);
 				for (int i = 0; i < tableSize * tableSize; i++){
 					tableContent.add(new TableCell(allValues.get(i)));
@@ -432,6 +443,14 @@ public class BullshitBingo implements ActionListener, MouseListener{
         	System.out.println(e.getStackTrace());
         }
 		new BullshitBingo();
+	}
+
+	@Override
+	public void stateChanged(ChangeEvent e) {
+		if (e.getSource() instanceof JSpinner){
+			JSpinner spinner = (JSpinner) e.getSource();
+			this.difficulty = (int) spinner.getValue();
+		}
 	}
 
 }
